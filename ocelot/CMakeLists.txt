@@ -1,28 +1,26 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
-if (APPLE)
-	project(gpuocelot C CXX ASM)
-else()
-	project(gpuocelot C CXX CUDA ASM)
-endif()
-
 option(BUILD_LLVM "Use LLVM compiled from sources: default OFF" OFF)
 option(BUILD_TESTS "Build tests: default OFF" OFF)
 option(BUILD_TESTS_CUDA "Build CUDA tests: default ON" ON)
 option(BUILD_TOOLS "Build tool executables: default ON" ON)
+
+if (NOT APPLE AND BUILD_TESTS AND BUILD_TESTS_CUDA)
+	project(gpuocelot C CXX CUDA ASM)
+	# in order to retain the PTX code in the text executables,
+	# the target GPU architecture has to be virtual.
+	set(CMAKE_CUDA_ARCHITECTURES 35-virtual)
+	list(APPEND CUDA_NVCC_FLAGS "-Wno-deprecated-gpu-targets -Wno-deprecated-declarations")
+	set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+else()
+	project(gpuocelot C CXX ASM)
+endif()
 
 if ("x${CMAKE_BUILD_TYPE}" STREQUAL "x")
 set(CMAKE_BUILD_TYPE "Release")
 endif()
 
 list(APPEND CMAKE_CXX_FLAGS "-fexceptions -Wno-return-type -Wno-terminate")
-
-# in order to retain the PTX code in the text executables,
-# the target GPU architecture has to be virtual.
-set(CMAKE_CUDA_ARCHITECTURES 35-virtual)
-list(APPEND CUDA_NVCC_FLAGS "-Wno-deprecated-gpu-targets -Wno-deprecated-declarations")
-
-set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 
 if (APPLE)
 	set(CMAKE_PREFIX_PATH
