@@ -123,9 +123,9 @@ jobs:
             -DCMAKE_CUDA_COMPILER="$CUDA_ROOT/bin/nvcc" \
             -DCUDAToolkit_ROOT="$CUDA_ROOT" \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-          cmake --build ocelot/build-cuda12 \
-            --target gpuocelot_cuda_TestCudaSequence \
-            --verbose
+          ninja -C ocelot/build-cuda12 -v \
+            CMakeFiles/gpuocelot_cuda_TestCudaSequence.dir/src/cuda/test/TestCudaSequence.cu.o
+          test -f ocelot/build-cuda12/CMakeFiles/gpuocelot_cuda_TestCudaSequence.dir/src/cuda/test/TestCudaSequence.cu.o
           grep -F -- '--generate-code=arch=compute_50,code=[compute_50]' \
             ocelot/build-cuda12/compile_commands.json
 
