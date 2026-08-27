@@ -108,6 +108,7 @@ jobs:
           install_component cuda_cudart 12.8.90 \
             8d566b5fe745c46842dc16945cf36686227536decd2302c372be86da37faca68
 
+          ln -s lib "$cuda_root/lib64"
           echo "$cuda_root/bin" >> "$GITHUB_PATH"
           echo "CUDA_ROOT=$cuda_root" >> "$GITHUB_ENV"
           "$cuda_root/bin/nvcc" --version
