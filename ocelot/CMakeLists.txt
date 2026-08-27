@@ -11,7 +11,7 @@ if (NOT APPLE AND BUILD_TESTS AND BUILD_TESTS_CUDA)
 	project(gpuocelot C CXX CUDA ASM)
 	# in order to retain the PTX code in the text executables,
 	# the target GPU architecture has to be virtual.
-	set(CMAKE_CUDA_ARCHITECTURES 35-virtual)
+	set(CMAKE_CUDA_ARCHITECTURES 50-virtual)
 	list(APPEND CUDA_NVCC_FLAGS "-Wno-deprecated-gpu-targets -Wno-deprecated-declarations")
 	set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 else()

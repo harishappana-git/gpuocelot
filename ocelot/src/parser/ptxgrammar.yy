@@ -73,11 +73,12 @@
 
 %token<value> TOKEN_ENTRY TOKEN_EXTERN TOKEN_FILE TOKEN_VISIBLE TOKEN_LOC
 %token<value> TOKEN_FUNCTION TOKEN_STRUCT TOKEN_UNION TOKEN_TARGET TOKEN_VERSION
-%token<value> TOKEN_SECTION TOKEN_ADDRESS_SIZE TOKEN_WEAK
+%token<value> TOKEN_SECTION TOKEN_DEBUG_STR TOKEN_FUNCTION_NAME TOKEN_INLINED_AT
+%token<value> TOKEN_ADDRESS_SIZE TOKEN_WEAK
 
 %token<value> TOKEN_MAXNREG TOKEN_MAXNTID TOKEN_MAXNCTAPERSM TOKEN_MINNCTAPERSM 
 %token<value> TOKEN_SM11 TOKEN_SM12 TOKEN_SM13 TOKEN_SM20 TOKEN_MAP_F64_TO_F32
-%token<value> TOKEN_SM21 TOKEN_SM10 TOKEN_SM30 TOKEN_SM35
+%token<value> TOKEN_SM21 TOKEN_SM10 TOKEN_SM30 TOKEN_SM35 TOKEN_SM50
 %token<value> TOKEN_TEXMODE_INDEPENDENT TOKEN_TEXMODE_UNIFIED
 
 %token<value> TOKEN_CONST TOKEN_GLOBAL TOKEN_LOCAL TOKEN_PARAM TOKEN_PRAGMA TOKEN_PTR
@@ -158,7 +159,7 @@ nonEntryStatement : nonEntryStatements
 };
 
 statement : initializableDeclaration | nonEntryStatement | entry | functionBody
-	| functionDeclaration;
+	| functionDeclaration | debugStringSection;
 
 statements : statement | statements statement;
 
@@ -260,7 +261,7 @@ singleInitializer : singleList |  '{' singleList '}' | '{' singleListSingle '}'
 	| singleListSingle;
 
 shaderModel : TOKEN_SM10 | TOKEN_SM11 | TOKEN_SM12 | TOKEN_SM13 | TOKEN_SM20
-	| TOKEN_SM21 | TOKEN_SM30 | TOKEN_SM35;
+	| TOKEN_SM21 | TOKEN_SM30 | TOKEN_SM35 | TOKEN_SM50;
 	
 floatingPointOption : TOKEN_MAP_F64_TO_F32;
 textureOption: TOKEN_TEXMODE_INDEPENDENT | TOKEN_TEXMODE_UNIFIED;
@@ -693,10 +694,29 @@ uninitializableDeclaration : uninitializable addressableVariablePrefix
 };
 
 location : TOKEN_LOC TOKEN_DECIMAL_CONSTANT TOKEN_DECIMAL_CONSTANT 
-	TOKEN_DECIMAL_CONSTANT
+	TOKEN_DECIMAL_CONSTANT optionalInlineLocation
 {
 	state.location( $<value>2, $<value>3, $<value>4 );
 };
+
+optionalFunctionNameOffset : /* empty string */ | '+' TOKEN_DECIMAL_CONSTANT;
+
+inlineFunctionName : identifier | TOKEN_DEBUG_STR;
+
+inlineLocation : ',' TOKEN_FUNCTION_NAME inlineFunctionName optionalFunctionNameOffset
+	',' TOKEN_INLINED_AT TOKEN_DECIMAL_CONSTANT TOKEN_DECIMAL_CONSTANT
+	TOKEN_DECIMAL_CONSTANT;
+
+optionalInlineLocation : /* empty string */ | inlineLocation;
+
+debugStringBytes : TOKEN_DECIMAL_CONSTANT
+	| debugStringBytes ',' TOKEN_DECIMAL_CONSTANT;
+
+debugStringEntry : TOKEN_LABEL | TOKEN_B8 debugStringBytes;
+
+debugStringEntries : /* empty string */ | debugStringEntries debugStringEntry;
+
+debugStringSection : TOKEN_SECTION TOKEN_DEBUG_STR '{' debugStringEntries '}';
 
 label : TOKEN_LABEL optionalMetadata
 {

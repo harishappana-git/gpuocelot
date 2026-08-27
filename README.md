@@ -38,7 +38,7 @@ cmake ..
 make -j12
 ```
 
-Building on other distros (currently only fedora 37 was tested) requires rebuilding llvm with `-DBUILD_LLVM=ON` and turning off cuda tests with `-DBUILD_TESTS_CUDA=OFF`, as newer version of nvcc (12.0+) shipped with most distros don't support the old `sm_35` architecture.
+Building on other distros (currently only fedora 37 was tested) may require rebuilding LLVM with `-DBUILD_LLVM=ON`. CUDA tests target virtual `sm_50`, the oldest architecture supported by CUDA 12; disable them with `-DBUILD_TESTS_CUDA=OFF` when a CUDA compiler is unavailable.
 
 ### MacOS
 

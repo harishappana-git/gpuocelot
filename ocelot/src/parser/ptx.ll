@@ -268,6 +268,10 @@ LABEL ({IDENTIFIER}{WHITESPACE}":")
                                     return TOKEN_EXTERN; }
 ".file"                         { yylval->value = TOKEN_FILE; \
                                     return TOKEN_FILE; }
+"function_name"                { yylval->value = TOKEN_FUNCTION_NAME; \
+                                    return TOKEN_FUNCTION_NAME; }
+"inlined_at"                   { yylval->value = TOKEN_INLINED_AT; \
+                                    return TOKEN_INLINED_AT; }
 ".func"                         { yylval->value = TOKEN_FUNCTION; \
                                     return TOKEN_FUNCTION; }
 ".global"                       { yylval->value = TOKEN_GLOBAL; \
@@ -296,6 +300,8 @@ LABEL ({IDENTIFIER}{WHITESPACE}":")
                                     return TOKEN_SAMPLERREF; }
 ".section"                      { yylval->value = TOKEN_SECTION; \
                                     return TOKEN_SECTION; }
+".debug_str"                    { yylval->value = TOKEN_DEBUG_STR; \
+                                    return TOKEN_DEBUG_STR; }
 ".shared"                       { yylval->value = TOKEN_SHARED; \
                                     return TOKEN_SHARED;}
 ".shiftamt"                     { yylval->value = TOKEN_SHIFT_AMOUNT; \
@@ -333,6 +339,8 @@ LABEL ({IDENTIFIER}{WHITESPACE}":")
                                     return TOKEN_SM30; }
 "sm_35"                         { yylval->value = TOKEN_SM35; 
                                     return TOKEN_SM35; }
+"sm_50"                         { yylval->value = TOKEN_SM50;
+                                    return TOKEN_SM50; }
 "map_f64_to_f32"                { yylval->value = TOKEN_MAP_F64_TO_F32; 
                                     return TOKEN_MAP_F64_TO_F32; }
 "texmode_independent"           { yylval->value = TOKEN_TEXMODE_INDEPENDENT; 
