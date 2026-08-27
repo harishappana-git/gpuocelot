@@ -32,8 +32,6 @@
 #undef REPORT_BASE
 #endif
 
-
-
 #define REPORT_BASE 0
 
 /*! \brief A namespace for parsing PTX */
