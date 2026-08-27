@@ -63,6 +63,71 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  cuda12-compile:
+    name: CUDA 12.8 sm_50 compile
+    if: >-
+      github.repository == 'harishappana-git/gpuocelot' &&
+      github.event_name == 'push' &&
+      github.ref_name == 'ci/cuda12-validation'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get -y --no-install-recommends install \
+            cmake ninja-build libfl-dev libboost-filesystem-dev libboost-thread-dev
+
+      - name: Install checksum-verified CUDA 12 compiler
+        shell: bash
+        run: |
+          cuda_root="$RUNNER_TEMP/cuda-12.8"
+          mkdir -p "$cuda_root"
+
+          install_component() {
+            component="$1"
+            version="$2"
+            expected_sha256="$3"
+            archive="$RUNNER_TEMP/${component}-${version}.tar.xz"
+            curl --fail --location --retry 5 --retry-all-errors \
+              --output "$archive" \
+              "https://developer.download.nvidia.com/compute/cuda/redist/${component}/linux-x86_64/${component}-linux-x86_64-${version}-archive.tar.xz"
+            echo "$expected_sha256  $archive" | sha256sum --check -
+            tar -xJf "$archive" -C "$cuda_root" --strip-components=1
+          }
+
+          install_component cuda_nvcc 12.8.93 \
+            9961b3484b6b71314063709a4f9529654f96782ad39e72bf1e00f070db8210d3
+          install_component cuda_cccl 12.8.90 \
+            0740e9e01e4f15e17c5ab8d68bba4f8ec0eb6b84edccba4ac45112d2d2174e4b
+          install_component cuda_cudart 12.8.90 \
+            8d566b5fe745c46842dc16945cf36686227536decd2302c372be86da37faca68
+
+          echo "$cuda_root/bin" >> "$GITHUB_PATH"
+          echo "CUDA_ROOT=$cuda_root" >> "$GITHUB_ENV"
+          "$cuda_root/bin/nvcc" --version
+
+      - name: Compile a CUDA test for virtual sm_50
+        shell: bash
+        run: |
+          cmake -S ocelot -B ocelot/build-cuda12 -G Ninja \
+            -DBUILD_TESTS=ON \
+            -DBUILD_TESTS_CUDA=ON \
+            -DBUILD_TOOLS=OFF \
+            -DCMAKE_CUDA_COMPILER="$CUDA_ROOT/bin/nvcc" \
+            -DCUDAToolkit_ROOT="$CUDA_ROOT" \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          cmake --build ocelot/build-cuda12 \
+            --target gpuocelot_cuda_TestCudaSequence \
+            --verbose
+          grep -F -- '--generate-code=arch=compute_50,code=[compute_50]' \
+            ocelot/build-cuda12/compile_commands.json
+
   tinygrad-cuda12:
     name: tinygrad CUDA 12 (${{ matrix.backend }})
     needs: test
