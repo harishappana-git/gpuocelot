@@ -17,11 +17,20 @@ jobs:
         os: [ubuntu-24.04, macos-15]
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }}
+    env:
+      GPUOCELOT_SHA: 664c83145bf0f38ec7f2a635eef152c3632f1c9c
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
+          ref: ${{ github.repository == 'harishappana-git/gpuocelot' && github.event_name == 'push' && github.ref_name == 'ci/cuda12-validation' && env.GPUOCELOT_SHA || github.sha }}
           submodules: recursive
           persist-credentials: false
+      - name: Verify pinned GPUOcelot validation source
+        if: >-
+          github.repository == 'harishappana-git/gpuocelot' &&
+          github.event_name == 'push' &&
+          github.ref_name == 'ci/cuda12-validation'
+        run: test "$(git rev-parse HEAD)" = "$GPUOCELOT_SHA"
       - name: Install Linux deps
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get -y --no-install-recommends install cmake ninja-build libfl-dev
@@ -71,11 +80,18 @@ jobs:
       github.ref_name == 'ci/cuda12-validation'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      GPUOCELOT_SHA: 664c83145bf0f38ec7f2a635eef152c3632f1c9c
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
+          ref: ${{ env.GPUOCELOT_SHA }}
           submodules: recursive
           persist-credentials: false
+
+      - name: Verify pinned GPUOcelot validation source
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$GPUOCELOT_SHA"
 
       - name: Install build dependencies
         run: |
@@ -243,6 +259,138 @@ jobs:
         shell: bash
         run: |
           python3 -c "from tinygrad import Device; assert Device.DEFAULT in ['CUDA','NV'], Device.DEFAULT; assert Device[Device.DEFAULT].arch == 'sm_50', Device[Device.DEFAULT].arch"
+          DEBUG=5 FORWARD_ONLY=1 python3 test/test_tiny.py TestTiny.test_plus
+
+      - name: Run exact CUDA mock-backend suite
+        shell: bash
+        run: |
+          python -m pytest -n=auto test/backend \
+            --ignore test/backend/test_multitensor.py \
+            --durations=20
+
+      - name: Run PMA add
+        shell: bash
+        run: VIZ=-1 PMA=1 DEBUG=5 python3 test/backend/test_ops.py TestOps.test_add
+
+      - name: Preserve tinygrad process-replay step
+        uses: ./.github/actions/process-replay
+
+  tinygrad-cuda11:
+    name: tinygrad CUDA 11.5 sm_35 (${{ matrix.backend }})
+    needs: test
+    if: >-
+      github.repository == 'harishappana-git/gpuocelot' &&
+      github.event_name == 'push' &&
+      github.ref_name == 'ci/cuda12-validation'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [ptx, nv]
+    env:
+      CACHE_VERSION: '20'
+      CAPTURE_PROCESS_REPLAY: '0'
+      CHECK_OOB: '1'
+      FORWARD_ONLY: '1'
+      PYTHONPATH: ${{ github.workspace }}
+      TINYGRAD_SHA: 2d4e7afcbfbe749f751f8ffe668314b122809ad7
+    steps:
+      - name: Download this run's Linux GPUOcelot artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: libgpuocelot-Linux
+          path: ${{ runner.temp }}/gpuocelot
+
+      - name: Checkout the exact upstream tinygrad validation commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: tinygrad/tinygrad
+          ref: ${{ env.TINYGRAD_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify pinned tinygrad source
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$TINYGRAD_SHA"
+          grep -F '"compute_capability": (3, 5)' test/mockgpu/cuda/cuda.py
+          grep -F 'NV2080_CTRL_GR_INFO_SM_VERSION_3_5' test/mockgpu/nv/nvdriver.py
+
+      - name: Set up tinygrad test dependencies
+        uses: ./.github/actions/setup-tinygrad
+        with:
+          key: cuda11-${{ matrix.backend }}-validation
+          deps: testing_unit
+          cuda: 'false'
+          ocelot: 'false'
+
+      - name: Install checksum-verified CUDA 11 NVRTC
+        shell: bash
+        run: |
+          cuda_root="$RUNNER_TEMP/cuda-11.5"
+          nvrtc_archive="$RUNNER_TEMP/cuda_nvrtc-11.5.119.tar.xz"
+          mkdir -p "$cuda_root"
+          curl --fail --location --retry 5 --retry-all-errors \
+            --output "$nvrtc_archive" \
+            https://developer.download.nvidia.com/compute/cuda/redist/cuda_nvrtc/linux-x86_64/cuda_nvrtc-linux-x86_64-11.5.119-archive.tar.xz
+          echo "78aa426f8d1bd6a309582268045e92d798dea84ab17b0e41bbf81ed4c6c51c37  $nvrtc_archive" \
+            | sha256sum --check -
+          tar -xJf "$nvrtc_archive" -C "$cuda_root" --strip-components=1
+          test -f "$cuda_root/lib/libnvrtc.so"
+          echo "CUDA_PATH=$cuda_root" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$cuda_root/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+
+      - name: Install this run's GPUOcelot library
+        shell: bash
+        run: |
+          ocelot_artifact="$RUNNER_TEMP/gpuocelot/libgpuocelot.so"
+          test -f "$ocelot_artifact"
+          file "$ocelot_artifact"
+          nm -D --defined-only "$ocelot_artifact" | grep -E ' ptx_run$'
+          sha256sum "$ocelot_artifact"
+          sudo install -m 0755 "$ocelot_artifact" /usr/local/lib/libgpuocelot.so
+          cmp "$ocelot_artifact" /usr/local/lib/libgpuocelot.so
+          sudo ldconfig
+          ldd_output="$(ldd /usr/local/lib/libgpuocelot.so)"
+          printf '%s\n' "$ldd_output"
+          ! grep -q 'not found' <<<"$ldd_output"
+
+      - name: Verify CUDA 11 and generated PTX
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import ctypes
+          import os
+
+          nvrtc = ctypes.CDLL(os.path.join(os.environ["CUDA_PATH"], "lib", "libnvrtc.so"))
+          major, minor = ctypes.c_int(), ctypes.c_int()
+          assert nvrtc.nvrtcVersion(ctypes.byref(major), ctypes.byref(minor)) == 0
+          assert (major.value, minor.value) == (11, 5), (major.value, minor.value)
+
+          from tinygrad.runtime.support.compiler_cuda import NVRTCCompiler
+          source = 'extern "C" __global__ void increment(unsigned *x) { x[threadIdx.x]++; }'
+          ptx = NVRTCCompiler("sm_35").compile(source).decode()
+          assert ".version 7.5" in ptx, ptx[:500]
+          assert ".target sm_35" in ptx, ptx[:500]
+          print("NVRTC", major.value, minor.value)
+          print("\n".join(ptx.splitlines()[:12]))
+          PY
+
+      - name: Select tinygrad mock backend
+        shell: bash
+        run: |
+          if [[ "${{ matrix.backend }}" == "ptx" ]]; then
+            echo "DEV=MOCK+CUDA:PTX" >> "$GITHUB_ENV"
+          else
+            echo "DEV=MOCK+NV" >> "$GITHUB_ENV"
+            echo "SKIP_SLOW_TEST=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Check Device.DEFAULT and print source
+        shell: bash
+        run: |
+          python3 -c "from tinygrad import Device; assert Device.DEFAULT in ['CUDA','NV'], Device.DEFAULT; assert Device[Device.DEFAULT].arch == 'sm_35', Device[Device.DEFAULT].arch"
           DEBUG=5 FORWARD_ONLY=1 python3 test/test_tiny.py TestTiny.test_plus
 
       - name: Run exact CUDA mock-backend suite
