@@ -32,6 +32,8 @@
 #undef REPORT_BASE
 #endif
 
+
+
 #define REPORT_BASE 0
 
 /*! \brief A namespace for parsing PTX */
@@ -139,6 +141,27 @@ namespace parser
 	void PTXParser::State::_setImmediateTypes()
 	{
 		ir::PTXInstruction& instruction = statement.instruction;
+
+		if( instruction.opcode == ir::PTXInstruction::Bfi )
+		{
+			if( instruction.pq.addressMode == ir::PTXOperand::Immediate )
+			{
+				instruction.pq.type = instruction.type;
+			}
+			if( instruction.a.addressMode == ir::PTXOperand::Immediate )
+			{
+				instruction.a.type = instruction.type;
+			}
+			if( instruction.b.addressMode == ir::PTXOperand::Immediate )
+			{
+				instruction.b.type = ir::PTXOperand::u32;
+			}
+			if( instruction.c.addressMode == ir::PTXOperand::Immediate )
+			{
+				instruction.c.type = ir::PTXOperand::u32;
+			}
+			return;
+		}
 		
 		ir::PTXOperand* sources[] =
 			{ &instruction.a, &instruction.b, &instruction.c };
@@ -3001,4 +3024,3 @@ namespace parser
 }
 
 #endif
-
