@@ -21,6 +21,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           submodules: recursive
+          persist-credentials: false
       - name: Install Linux deps
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get -y --no-install-recommends install cmake ninja-build libfl-dev
@@ -32,7 +33,8 @@ jobs:
         with:
           repository: boostorg/boost
           path: boost
-          ref: boost-1.90.0
+          ref: 1bed2b0712b2119f20d66c5053def9173c8462a5
+          persist-credentials: false
       - name: Build Boost (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -58,12 +60,16 @@ jobs:
         with:
           name: libgpuocelot-${{ runner.os }}
           path: ocelot/build/libgpuocelot.${{ runner.os == 'Linux' && 'so' || 'dylib' }}
+          if-no-files-found: error
           retention-days: 1
 
   tinygrad-cuda12:
     name: tinygrad CUDA 12 (${{ matrix.backend }})
     needs: test
-    if: github.event_name == 'push' && github.ref_name == 'ci/cuda12-validation'
+    if: >-
+      github.repository == 'harishappana-git/gpuocelot' &&
+      github.event_name == 'push' &&
+      github.ref_name == 'ci/cuda12-validation'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
