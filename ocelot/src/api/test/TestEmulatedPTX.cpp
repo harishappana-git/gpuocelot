@@ -2,8 +2,10 @@
 #include <cstdint>
 #include <iostream>
 #include <sstream>
+#include <string>
 
 #include <ocelot/ir/Module.h>
+#include <ocelot/parser/PTXParser.h>
 
 extern "C" void ptx_run(const char* source, int n_args, void* args[],
 	int block_x, int block_y, int block_z,
@@ -11,6 +13,41 @@ extern "C" void ptx_run(const char* source, int n_args, void* args[],
 
 int main()
 {
+	// Operand 4 of bfi is always u32, even when the instruction and its data operands are b64.
+	const char* invalidBfi = R"ptx(
+.version 8.7
+.target sm_50
+.address_size 64
+
+.visible .entry invalid_bfi()
+{
+	.reg .u32 %r<2>;
+	.reg .b64 %rd<4>;
+
+	mov.u32 %r1, 32;
+	mov.u64 %rd1, 1;
+	mov.u64 %rd2, 2;
+	bfi.b64 %rd3, %rd1, %rd2, %r1, %rd2;
+	ret;
+}
+)ptx";
+
+	try
+	{
+		std::stringstream source(invalidBfi);
+		ir::Module module((void*)invalidBfi, source);
+		std::cerr << "bfi.b64 accepted a b64 length operand\n";
+		return 1;
+	}
+	catch(const parser::PTXParser::Exception& error)
+	{
+		if(std::string(error.what()).find("operand 4 type b64 cannot be assigned to u32") == std::string::npos)
+		{
+			std::cerr << "bfi.b64 failed for an unexpected reason: " << error.what() << '\n';
+			return 1;
+		}
+	}
+
 	// Exercise PTX 8.7 sm_50 execution with NVRTC 12.8-style metadata and PTX-legal debug-string variants.
 	const char* ptx = R"ptx(
 .version 8.7
